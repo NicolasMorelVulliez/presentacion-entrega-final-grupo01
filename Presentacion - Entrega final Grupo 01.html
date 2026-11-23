@@ -100,6 +100,21 @@
   @keyframes ripple01{0%{transform:translate(-50%,-50%) scale(.4);opacity:.55}100%{transform:translate(-50%,-50%) scale(5.5);opacity:0}}
   .terra .floor-pin{filter:drop-shadow(0 14px 22px rgba(24,43,49,.35))}
 
+  /* ===== STANDBY: movimiento sutil tras un rato sin interacción (el contenido nunca desaparece) ===== */
+  .floor-pin.nudge svg{animation:pinNudge .9s cubic-bezier(.3,1.5,.4,1)}
+  .floor-pin.nudge .ripple{animation:ripple01 .9s .18s ease-out}
+  @keyframes pinNudge{0%{transform:none}30%{transform:translateY(-10px)}62%{transform:translateY(2px)}100%{transform:none}}
+  .rail-glow{position:absolute;left:52px;top:-150px;width:3px;height:150px;margin-left:-1.5px;border-radius:3px;pointer-events:none;
+    background:linear-gradient(to bottom,transparent,var(--acc),transparent);opacity:0}
+  .sweep .rail-glow{animation:railSweep 2.6s ease-in-out}
+  @keyframes railSweep{0%{top:-150px;opacity:0}12%{opacity:1}88%{opacity:1}100%{top:100%;opacity:0}}
+  .breathe{animation:breathe 1.4s ease-in-out var(--bd,0s) 1}
+  @keyframes breathe{0%,100%{transform:translateY(0)}45%{transform:translateY(-6px)}}
+  .tbl tbody tr.breathe{animation-name:rowGlow}
+  @keyframes rowGlow{0%,100%{background:transparent}45%{background:var(--tint)}}
+  .g-bar.breathe{animation-name:barGlow}
+  @keyframes barGlow{0%,100%{filter:none}45%{filter:brightness(1.18) saturate(1.1)}}
+
   .stop-content{position:relative;z-index:2;width:100%;max-width:1240px;margin:0 auto;padding:0 40px 0 160px}
   .stop-head{max-width:880px;margin-bottom:36px}
   .stop-eb{font-family:var(--mono);font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--acct);display:inline-flex;align-items:center;gap:12px;font-weight:500}
@@ -1227,8 +1242,12 @@
   setTimeout(function(){ hud.textContent = fmt(START); order.slice(0, Math.floor(maxLit * START / TARGET)).forEach(function(w){ w.setAttribute('opacity', .7); }); lit = Math.floor(maxLit * START / TARGET); requestAnimationFrame(grow); }, DELAY);
 
   // Fase 2: titileo continuo + contador vivo alrededor del pico
+  var twinkleId = null, replaying = false;
   function twinkle(){
-    setInterval(function(){
+    replaying = false;
+    if (twinkleId) return;
+    twinkleId = setInterval(function(){
+      if (replaying) return;
       for (var k = 0; k < 3; k++){
         var w = front.wins[Math.floor(Math.random() * front.wins.length)];
         var on = parseFloat(w.getAttribute('opacity')) > .2;
@@ -1237,6 +1256,17 @@
       hud.textContent = fmt(TARGET - 40 + Math.random() * 80);
     }, 260);
   }
+
+  // Standby: repetir la entrada (se apagan las ventanas y se vuelven a encender con el contador 300 -> 1.500)
+  window.__heroReplay = function(){
+    if (replaying || !twinkleId) return;
+    replaying = true;
+    var base = Math.floor(maxLit * START / TARGET);
+    front.wins.forEach(function(w){ w.setAttribute('opacity', 0); });
+    order.slice(0, base).forEach(function(w){ w.setAttribute('opacity', .7); });
+    lit = base; t0 = null; hud.textContent = fmt(START);
+    requestAnimationFrame(grow);
+  };
 
   // Paquetes de datos viajando a la nube (y respuestas de vuelta)
   var pk = [];
@@ -1284,6 +1314,7 @@
         '<g class="rail-ticks">' + ticks + '</g>' +
         '<path class="rail-draw" d="M52,0 L52,1000"/>' +
       '</svg>' +
+      '<span class="rail-glow"></span>' +
       '<div class="floor-pin"><svg viewBox="0 0 64 78" width="64" height="78">' +
         '<rect x="2" y="2" width="60" height="74" rx="13" fill="' + (stop.classList.contains('terra') ? '#182B31' : '#C76A4B') + '"/>' +
         '<rect x="9" y="22" width="46" height="46" rx="9" fill="#FBFAF6"/>' +
@@ -1391,6 +1422,33 @@
     else if (k === 'f' || k === 'F'){ e.preventDefault(); toggleFs(); }
   });
   update();
+
+  /* ---- Standby: tras 12 s sin interacción, la diapo actual "respira"; se repite cada 15 s mientras siga quieta ---- */
+  if (!reduce){
+    var IDLE = 12000, REPEAT = 15000, idleT = null;
+    var SB = '.xcard,.kpi,.tier,.tool,.stat,.kcol,.shot,.ps,.time,.step .card,.stage,.gate,.tmember,.edt-ph,.m .tx,.m2,.bar-row,.tb,.scope-box,.pn,.sc,.chip,.tbl tbody tr,.g-bar,.period,.planb,.rollback,.block';
+    function restart(el, cls){ el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+    function schedule(ms){ clearTimeout(idleT); idleT = setTimeout(standby, ms); }
+    function standby(){
+      var vid = document.getElementById('demoVideo');
+      if (document.hidden || (vid && !vid.paused)) return schedule(REPEAT);
+      var s = secs[current()];
+      document.querySelectorAll('.breathe').forEach(function(el){ el.classList.remove('breathe'); });
+      if (s.id === 's01' && window.__heroReplay) window.__heroReplay();
+      var pin = s.querySelector('.floor-pin'); if (pin) restart(pin, 'nudge');
+      var rail = s.querySelector('.stop-rail'); if (rail) restart(rail, 'sweep');
+      var vh = window.innerHeight;
+      var items = Array.prototype.filter.call(s.querySelectorAll(SB), function(el){
+        var r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < vh && r.width > 0;
+      }).slice(0, 18);
+      items.forEach(function(el, i){ el.style.setProperty('--bd', (0.45 + i * 0.09).toFixed(2) + 's'); restart(el, 'breathe'); });
+      schedule(REPEAT);
+    }
+    ['keydown', 'mousemove', 'mousedown', 'wheel', 'touchstart', 'scroll'].forEach(function(ev){
+      window.addEventListener(ev, function(){ schedule(IDLE); }, {passive: true});
+    });
+    schedule(IDLE);
+  }
 
   /* ---- Video demo: se muestra solo si existe el archivo ---- */
   var v = document.getElementById('demoVideo'), box = document.getElementById('vbox');
