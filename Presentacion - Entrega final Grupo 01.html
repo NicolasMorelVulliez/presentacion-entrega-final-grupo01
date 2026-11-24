@@ -81,6 +81,29 @@
   .keys .lbl{white-space:nowrap}
   @media(max-width:700px),(hover:none){.keys{display:none}}
 
+  /* ===== Tamaño del contenido: escala texto y diseño juntos (zoom en los hijos, el contenedor no cambia) ===== */
+  .hero-content > *, .stop-content > *, .end-inner > *{zoom:var(--ui-scale,1)}
+  .lift .aa{font-family:var(--sans);font-weight:800;font-size:13px;letter-spacing:-.02em;border-bottom:1px solid rgba(180,198,196,.18);border-radius:9px 9px 0 0;margin-bottom:2px}
+  .lift .aa[aria-expanded="true"]{color:var(--terra-soft);background:rgba(232,149,122,.16)}
+  .sizer{position:fixed;right:76px;bottom:18px;z-index:51;width:250px;padding:16px 16px 14px;border-radius:14px;
+    background:rgba(24,43,49,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(180,198,196,.22);
+    box-shadow:0 18px 40px -14px rgba(0,0,0,.55);color:var(--cream);font-family:var(--sans)}
+  .sizer[hidden]{display:none}
+  .sizer-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+  .sizer-h b{font-size:13px;font-weight:700}
+  .sizer-h output{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--terra-soft)}
+  .sizer-row{display:flex;align-items:center;gap:10px}
+  .sizer-row button{-webkit-appearance:none;appearance:none;border:1px solid rgba(180,198,196,.3);background:transparent;color:var(--cream);
+    width:28px;height:28px;border-radius:8px;cursor:pointer;font-family:var(--mono);font-size:15px;line-height:1;display:grid;place-items:center;flex:none}
+  .sizer-row button:hover{border-color:var(--terra-soft);color:var(--terra-soft)}
+  .sizer input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:4px;border-radius:4px;background:rgba(180,198,196,.28);outline:none;margin:0}
+  .sizer input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--terra-soft);border:2px solid var(--cream);cursor:pointer}
+  .sizer input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--terra-soft);border:2px solid var(--cream);cursor:pointer}
+  .sizer input[type=range]:focus-visible{box-shadow:0 0 0 2px var(--terra-soft)}
+  .sizer-f{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-family:var(--mono);font-size:10.5px;color:var(--sage)}
+  .sizer-f button{-webkit-appearance:none;appearance:none;border:0;background:none;color:var(--sage-2);font:inherit;text-decoration:underline;cursor:pointer;padding:0}
+  .sizer-f button:hover{color:var(--terra-soft)}
+
   /* ===================== SECCIONES / PISOS ===================== */
   .stop{--bg:var(--cream);--fg:var(--ink);--fg2:var(--muted);--card:var(--paper);--bd:var(--line);--acc:var(--terra);--acct:var(--terra-deep);--soft:var(--peach);--tint:var(--mint);
     position:relative;background:var(--bg);color:var(--fg);min-height:100vh;display:flex;align-items:center;padding:88px 0 92px;overflow:hidden}
@@ -1126,7 +1149,18 @@
   </div>
 </footer>
 
+<div class="sizer" id="sizer" role="dialog" aria-label="Tamaño del contenido" hidden>
+  <div class="sizer-h"><b>Tamaño del contenido</b><output id="sizeOut">100 %</output></div>
+  <div class="sizer-row">
+    <button type="button" id="sizeDown" aria-label="Achicar">−</button>
+    <input type="range" id="sizeRange" min="70" max="130" step="5" value="100" aria-label="Tamaño del contenido en porcentaje" />
+    <button type="button" id="sizeUp" aria-label="Agrandar">+</button>
+  </div>
+  <div class="sizer-f"><span>Atajos: + y −</span><button type="button" id="sizeReset">Restablecer</button></div>
+</div>
+
 <nav class="lift" aria-label="Navegación de la presentación">
+  <button type="button" class="aa" id="sizeBtn" aria-label="Tamaño del contenido" aria-expanded="false" aria-controls="sizer">Aa</button>
   <button type="button" id="prevBtn" aria-label="Diapositiva anterior"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
   <div class="lift-n" aria-live="polite"><b id="liftNum">01</b><span>/ 26</span></div>
   <button type="button" id="nextBtn" aria-label="Diapositiva siguiente"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
@@ -1411,10 +1445,40 @@
   document.querySelectorAll('.kbd').forEach(function(b){
     b.addEventListener('click', function(){ this.blur(); if (this.getAttribute('data-act') === 'fs') toggleFs(); else go(current() + 1); });
   });
+  /* ---- Tamaño del contenido (70 % a 130 %), guardado en este navegador ---- */
+  var SKEY = 'g01-ui-scale', scale = 100;
+  var sizer = document.getElementById('sizer'), sizeBtn = document.getElementById('sizeBtn');
+  var range = document.getElementById('sizeRange'), outEl = document.getElementById('sizeOut');
+  function setScale(v, save){
+    scale = Math.max(70, Math.min(130, Math.round(v / 5) * 5));
+    var cur0 = current();
+    document.documentElement.style.setProperty('--ui-scale', (scale / 100).toString());
+    range.value = scale; outEl.textContent = scale + ' %';
+    if (save){ try { localStorage.setItem(SKEY, String(scale)); } catch(err){} }
+    // mantener la diapo actual en pantalla después de cambiar las alturas
+    secs[cur0].scrollIntoView({behavior: 'auto', block: 'start'});
+    update();
+  }
+  try { var saved = parseInt(localStorage.getItem(SKEY), 10); if (saved >= 70 && saved <= 130 && saved !== 100) setScale(saved, false); } catch(err){}
+  function openSizer(open){
+    sizer.hidden = !open; sizeBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) range.focus(); else sizeBtn.blur();
+  }
+  sizeBtn.addEventListener('click', function(e){ e.stopPropagation(); openSizer(sizer.hidden); });
+  range.addEventListener('input', function(){ setScale(+range.value, true); });
+  document.getElementById('sizeDown').addEventListener('click', function(){ setScale(scale - 5, true); });
+  document.getElementById('sizeUp').addEventListener('click', function(){ setScale(scale + 5, true); });
+  document.getElementById('sizeReset').addEventListener('click', function(){ setScale(100, true); });
+  document.addEventListener('click', function(e){ if (!sizer.hidden && !sizer.contains(e.target) && e.target !== sizeBtn) openSizer(false); });
+  sizer.addEventListener('keydown', function(e){ if (e.key === 'Escape'){ e.preventDefault(); openSizer(false); } });
+
   document.addEventListener('keydown', function(e){
     var tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'video' || tag === 'input' || tag === 'textarea' || e.altKey || e.ctrlKey || e.metaKey) return;
     var k = e.key;
+    var c = e.code || '', noKey = !k || k === 'Unidentified';
+    if (k === '+' || k === '=' || c === 'NumpadAdd' || (noKey && c === 'Equal')){ e.preventDefault(); setScale(scale + 5, true); return; }
+    if (k === '-' || k === '_' || c === 'NumpadSubtract' || (noKey && c === 'Minus')){ e.preventDefault(); setScale(scale - 5, true); return; }
     if (k === 'ArrowDown' || k === 'ArrowRight' || k === 'PageDown' || (k === ' ' && !e.shiftKey)){ e.preventDefault(); go(current() + 1); }
     else if (k === 'ArrowUp' || k === 'ArrowLeft' || k === 'PageUp' || (k === ' ' && e.shiftKey)){ e.preventDefault(); go(current() - 1); }
     else if (k === 'Home'){ e.preventDefault(); go(0); }
